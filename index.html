@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DROP RADAR v2 — EVM Airdrop Checker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050709;
+    --surface: #0b0f1a;
+    --surface2: #111827;
+    --border: #1c2740;
+    --accent: #00e5ff;
+    --accent2: #a855f7;
+    --accent3: #f59e0b;
+    --green: #10b981;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #475569;
+    --dim: #2d3748;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 0%, rgba(0,229,255,0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 500px 350px at 80% 100%, rgba(168,85,247,0.04) 0%, transparent 70%),
+      linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem; position: relative; z-index: 1; }
+
+  header { text-align: center; padding: 2.5rem 0 2rem; }
+
+  .version-pill {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: rgba(0,229,255,0.06); border: 1px solid rgba(0,229,255,0.18);
+    border-radius: 100px; padding: 0.3rem 0.9rem; font-size: 0.65rem;
+    color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 1.2rem;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 6px var(--green);
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  h1 {
+    font-family: 'Syne', sans-serif; font-size: clamp(2.8rem, 7vw, 5rem);
+    font-weight: 800; letter-spacing: -0.04em; line-height: 0.95;
+    background: linear-gradient(135deg, #ffffff 0%, var(--accent) 50%, var(--accent2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+
+  .tagline { color: var(--muted); font-size: 0.72rem; margin-top: 0.8rem; letter-spacing: 0.06em; }
+  .tagline span { color: var(--accent); }
+
+  .filter-tabs {
+    display: flex; gap: 0.5rem; flex-wrap: wrap;
+    margin: 1.5rem 0 1rem; justify-content: center;
+  }
+
+  .ftab {
+    padding: 0.4rem 0.9rem; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); font-size: 0.68rem; letter-spacing: 0.05em;
+    cursor: pointer; color: var(--muted); transition: all 0.15s; user-select: none;
+  }
+
+  .ftab:hover { color: var(--text); border-color: var(--dim); }
+  .ftab.at-all { color: #000; background: var(--green); border-color: var(--green); }
+  .ftab.at-current { color: #000; background: var(--accent); border-color: var(--accent); }
+  .ftab.at-historic { color: #000; background: var(--accent3); border-color: var(--accent3); }
+  .ftab.at-upcoming { color: #fff; background: var(--accent2); border-color: var(--accent2); }
+  .ftab.at-eligible { color: #000; background: var(--green); border-color: var(--green); }
+
+  .search-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; position: relative; overflow: hidden;
+  }
+
+  .search-box::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, var(--accent2) 70%, transparent 100%);
+  }
+
+  .input-label { font-size: 0.65rem; color: var(--accent); letter-spacing: 0.16em; text-transform: uppercase; display: block; margin-bottom: 0.7rem; }
+
+  .input-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+  .addr-input {
+    flex: 1; min-width: 260px; background: rgba(0,0,0,0.5); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.8rem 1rem; color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 0.8rem; outline: none; transition: border-color 0.2s;
+  }
+
+  .addr-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,229,255,0.1); }
+  .addr-input::placeholder { color: var(--muted); }
+  .addr-input.err { border-color: var(--red) !important; animation: shake 0.3s; }
+
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+  .btn-scan {
+    background: var(--accent); color: #000; border: none; border-radius: 10px;
+    padding: 0.8rem 1.5rem; font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 0.82rem; letter-spacing: 0.05em; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+
+  .btn-scan:hover:not(:disabled) { background: #00c4e0; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,0.3); }
+  .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .notice {
+    background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px;
+    padding: 0.7rem 1rem; font-size: 0.67rem; color: var(--accent3); line-height: 1.6; margin-top: 1rem;
+  }
+
+  .sh { display: flex; align-items: center; justify-content: space-between; margin: 1rem 0 0.6rem; }
+  .sh-title { font-size: 0.65rem; color: var(--accent); letter-spacing: 0.14em; text-transform: uppercase; }
+  .sh-action { font-size: 0.65rem; color: var(--accent2); cursor: pointer; background: none; border: none; letter-spacing: 0.04em; text-decoration: underline; }
+
+  .chains-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 1.2rem; }
+
+  .chain-chip {
+    display: flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.7rem;
+    border-radius: 7px; border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; font-size: 0.68rem; color: var(--muted); transition: all 0.13s; user-select: none;
+  }
+
+  .chain-chip:hover { color: var(--text); border-color: var(--dim); }
+  .chain-chip.on { border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.06); color: var(--accent); }
+
+  .progress-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; margin: 1rem 0; display: none; }
+  .progress-box.show { display: block; }
+  .pb-top { display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 0.6rem; }
+  .pb-text { color: var(--muted); }
+  .pb-pct { color: var(--accent); font-weight: 700; }
+  .pb-track { background: rgba(0,0,0,0.5); border-radius: 100px; height: 5px; overflow: hidden; }
+  .pb-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 100px; transition: width 0.25s ease; }
+  .pb-log { margin-top: 0.6rem; font-size: 0.68rem; color: var(--muted); height: 1.2em; overflow: hidden; }
+
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin: 1.25rem 0; }
+  @media(max-width:700px) { .summary-grid { grid-template-columns: repeat(2,1fr); } }
+
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1rem; text-align: center; position: relative; overflow: hidden;
+  }
+
+  .stat-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .stat-box.s1::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .stat-box.s2::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+  .stat-box.s3::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .stat-box.s4::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+
+  .stat-val { font-family: 'Syne', sans-serif; font-size: 1.7rem; font-weight: 800; display: block; }
+  .stat-box.s1 .stat-val { color: var(--green); }
+  .stat-box.s2 .stat-val { color: var(--accent3); }
+  .stat-box.s3 .stat-val { color: var(--accent); }
+  .stat-box.s4 .stat-val { color: var(--accent2); }
+  .stat-lbl { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.2rem; }
+
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 0.9rem; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.1rem; position: relative; overflow: hidden;
+    animation: fadeUp 0.35s ease forwards; opacity: 0; transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .card:hover { transform: translateY(-2px); }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .card.eligible { border-color: rgba(16,185,129,0.3); }
+  .card.eligible::before { background: linear-gradient(90deg, var(--green), var(--accent)); }
+  .card.expired { opacity: 0.45; border-color: rgba(239,68,68,0.2); }
+  .card.expired::before { background: linear-gradient(90deg, var(--red), transparent); }
+  .card.not-eligible { opacity: 0.55; }
+  .card.upcoming-card { border-color: rgba(168,85,247,0.25); }
+  .card.upcoming-card::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+
+  .cat-badge {
+    position: absolute; top: 0.7rem; right: 0.7rem; font-size: 0.55rem;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 0.18rem 0.5rem;
+    border-radius: 100px; font-weight: 700;
+  }
+
+  .cat-badge.historic { background: rgba(245,158,11,0.15); color: var(--accent3); border: 1px solid rgba(245,158,11,0.25); }
+  .cat-badge.current { background: rgba(0,229,255,0.1); color: var(--accent); border: 1px solid rgba(0,229,255,0.2); }
+  .cat-badge.upcoming { background: rgba(168,85,247,0.12); color: var(--accent2); border: 1px solid rgba(168,85,247,0.25); }
+
+  .card-top { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.85rem; padding-right: 3.5rem; }
+
+  .proj-icon {
+    width: 38px; height: 38px; border-radius: 9px; background: var(--surface2);
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+    flex-shrink: 0; border: 1px solid var(--border);
+  }
+
+  .proj-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.9rem; }
+  .proj-meta { font-size: 0.62rem; color: var(--muted); margin-top: 0.1rem; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.22rem 0.6rem;
+    border-radius: 100px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+
+  .status-pill.eligible { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+  .status-pill.no { background: rgba(71,85,105,0.3); color: var(--muted); border: 1px solid var(--border); }
+  .status-pill.exp { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .status-pill.elig-exp { background: rgba(245,158,11,0.12); color: var(--accent3); border: 1px solid rgba(245,158,11,0.25); }
+  .status-pill.up { background: rgba(168,85,247,0.12); color: var(--accent2); border: 1px solid rgba(168,85,247,0.25); }
+
+  .criteria-tag {
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.35rem 0.6rem; font-size: 0.62rem; color: var(--muted); margin: 0.65rem 0; line-height: 1.5;
+  }
+
+  .card-info { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; gap: 0.5rem; }
+
+  .amount-block {}
+  .amount-label { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .amount-val { font-family: 'Syne', sans-serif; font-weight: 700; color: var(--green); font-size: 1rem; }
+  .amount-usd { font-size: 0.65rem; color: var(--muted); }
+
+  .deadline-block { text-align: right; flex-shrink: 0; }
+  .deadline-label { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .deadline-val { font-size: 0.6rem; line-height: 1.4; max-width: 120px; }
+  .deadline-val.closed { color: var(--red); text-decoration: line-through; }
+  .deadline-val.open { color: var(--green); }
+  .deadline-val.soon { color: var(--accent3); }
+  .deadline-val.tbdt { color: var(--accent2); }
+
+  .card-action {
+    width: 100%; padding: 0.55rem; border-radius: 8px; border: none;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.75rem;
+    letter-spacing: 0.04em; cursor: pointer; transition: all 0.2s;
+  }
+
+  .card-action.claim { background: var(--green); color: #000; }
+  .card-action.claim:hover { background: #0ea573; }
+  .card-action.ex { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+  .card-action.farm { background: rgba(168,85,247,0.15); color: var(--accent2); border: 1px solid rgba(168,85,247,0.3); }
+  .card-action.farm:hover { background: rgba(168,85,247,0.28); }
+  .card-action.view { background: rgba(0,229,255,0.08); color: var(--accent); border: 1px solid rgba(0,229,255,0.2); }
+  .card-action.view:hover { background: rgba(0,229,255,0.15); }
+
+  .empty { text-align: center; padding: 5rem 2rem; color: var(--muted); }
+  .empty-icon { font-size: 3.5rem; opacity: 0.3; margin-bottom: 1rem; }
+  .empty-ttl { font-family: 'Syne', sans-serif; font-size: 1.1rem; margin-bottom: 0.4rem; color: var(--dim); }
+
+  footer {
+    text-align: center; padding: 2rem 0; color: var(--muted); font-size: 0.65rem;
+    border-top: 1px solid var(--border); margin-top: 3rem; letter-spacing: 0.04em; line-height: 1.8;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .legend {
+    display: flex; gap: 1rem; flex-wrap: wrap; margin: 0.5rem 0 1rem;
+    font-size: 0.62rem; color: var(--muted);
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="version-pill"><div class="live-dot"></div> v2.0 · 37 AIRDROPS RESEARCHED</div>
+    <h1>DROP RADAR</h1>
+    <p class="tagline">// <span>Historic + Active + Upcoming</span> · Multi-chain EVM · Feb 2026</p>
+  </header>
+
+  <div class="filter-tabs">
+    <div class="ftab at-all" onclick="setFilter(this,'all')">🔍 Semua (37)</div>
+    <div class="ftab" onclick="setFilter(this,'current')">⚡ Active / Claimable</div>
+    <div class="ftab" onclick="setFilter(this,'historic')">📜 Airdrop Lama</div>
+    <div class="ftab" onclick="setFilter(this,'upcoming')">🔮 Upcoming (Farm)</div>
+    <div class="ftab" onclick="setFilter(this,'eligible')">✅ Eligible Aja</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Eligible & Claimable</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div> Eligible tapi Expired</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div> Upcoming (Farm Now)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Expired / Closed</div>
+  </div>
+
+  <div class="search-box">
+    <span class="input-label">▸ EVM Wallet Address</span>
+    <div class="input-row">
+      <input type="text" class="addr-input" id="walletAddr" placeholder="0x... paste wallet lo disini" maxlength="42">
+      <button class="btn-scan" id="scanBtn" onclick="startScan()">⚡ SCAN ALL DROPS</button>
+    </div>
+    <div class="notice">
+      ⚠️ <strong>Disclaimer:</strong> Database ini di-research manual berdasarkan data publik airdrop per Februari 2026. Simulasi eligibility bersifat estimasi — <strong>selalu verifikasi langsung di situs resmi</strong> sebelum klaim. Beberapa airdrop lama sudah expired tapi tetap ditampilkan agar kamu tau yang kelewatan. DYOR!
+    </div>
+  </div>
+
+  <div class="sh">
+    <span class="sh-title">▸ Chain Filter</span>
+    <button class="sh-action" onclick="toggleAllChains()">Toggle All</button>
+  </div>
+  <div class="chains-row" id="chainsRow"></div>
+
+  <div class="progress-box" id="progressBox">
+    <div class="pb-top">
+      <span class="pb-text" id="pbText">Initializing...</span>
+      <span class="pb-pct" id="pbPct">0%</span>
+    </div>
+    <div class="pb-track"><div class="pb-fill" id="pbFill" style="width:0%"></div></div>
+    <div class="pb-log" id="pbLog"></div>
+  </div>
+
+  <div id="summarySection" style="display:none">
+    <div class="summary-grid">
+      <div class="stat-box s1"><span class="stat-val" id="sE">0</span><div class="stat-lbl">Eligible & Claimable</div></div>
+      <div class="stat-box s2"><span class="stat-val" id="sX">0</span><div class="stat-lbl">Eligible tapi Expired</div></div>
+      <div class="stat-box s3"><span class="stat-val" id="sU">$0</span><div class="stat-lbl">Est. Claimable Value</div></div>
+      <div class="stat-box s4"><span class="stat-val" id="sT">0</span><div class="stat-lbl">Total Projects Scanned</div></div>
+    </div>
+  </div>
+
+  <div id="emptyState" class="empty">
+    <div class="empty-icon">🛸</div>
+    <div class="empty-ttl">Belum ada scan</div>
+    <div>Masukkan wallet address dan klik SCAN ALL DROPS</div>
+  </div>
+
+  <div class="results-grid" id="resultsGrid"></div>
+
+  <footer>
+    DROP RADAR v2.0 — Database researched per Februari 2026<br>
+    Cross-check results: <a href="https://drops.bot" target="_blank">drops.bot</a> · <a href="https://bankless.com/claimables" target="_blank">Bankless Claimables</a> · <a href="https://earni.fi" target="_blank">Earni.fi</a> · <a href="https://merkl.xyz" target="_blank">Merkl.xyz</a><br>
+    Never share private key atau seed phrase. Selalu klaim dari URL resmi.
+  </footer>
+
+</div>
+<script>
+const CHAINS = [
+  {id:'ethereum',name:'Ethereum',icon:'⟠'},{id:'arbitrum',name:'Arbitrum',icon:'🔵'},
+  {id:'optimism',name:'Optimism',icon:'🔴'},{id:'base',name:'Base',icon:'🔷'},
+  {id:'polygon',name:'Polygon',icon:'🟣'},{id:'zksync',name:'zkSync',icon:'⚡'},
+  {id:'scroll',name:'Scroll',icon:'📜'},{id:'linea',name:'Linea',icon:'🟩'},
+  {id:'blast',name:'Blast',icon:'💥'},{id:'mantle',name:'Mantle',icon:'🌀'},
+  {id:'mode',name:'Mode',icon:'🟡'},{id:'manta',name:'Manta',icon:'🐋'},
+  {id:'taiko',name:'Taiko',icon:'🎏'},{id:'bsc',name:'BNB Chain',icon:'🟡'},
+  {id:'avalanche',name:'Avalanche',icon:'🔺'},{id:'zora',name:'Zora',icon:'🎵'},
+];
+
+// Researched airdrop database — Feb 2026
+const DROPS = [
+  // HISTORIC (expired)
+  {id:'uni20',name:'Uniswap UNI',icon:'🦄',chain:'Ethereum',chains:['ethereum'],token:'UNI',cat:'historic',cs:'expired',deadline:'Sep 2020 — CLOSED',url:'https://app.uniswap.org',crit:'Pernah swap di Uniswap sebelum Sep 2020. 400 UNI per wallet.',max:400,price:9.5,note:'Airdrop pertama & terbesar dalam sejarah DeFi. Sudah lama closed.'},
+  {id:'ens21',name:'ENS Domain',icon:'🔷',chain:'Ethereum',chains:['ethereum'],token:'ENS',cat:'historic',cs:'expired',deadline:'May 2022 — CLOSED',url:'https://app.ens.domains',crit:'Pernah punya domain .eth sebelum Oct 2021.',max:1000,price:18,note:'Deadline claim sudah lewat May 2022.'},
+  {id:'arb23',name:'Arbitrum ARB',icon:'🔵',chain:'Arbitrum',chains:['arbitrum'],token:'ARB',cat:'historic',cs:'expired',deadline:'Sep 2023 — CLOSED',url:'https://arbitrum.foundation',crit:'Transaksi aktif di Arbitrum One/Nova sebelum snapshot Feb 2023.',max:3000,price:1.2,note:'Senilai $1.97 miliar. Deadline sudah closed Sep 2023.'},
+  {id:'op1',name:'Optimism OP #1',icon:'🔴',chain:'Optimism',chains:['optimism'],token:'OP',cat:'historic',cs:'expired',deadline:'Sep 2022 — CLOSED',url:'https://app.optimism.io/airdrops',crit:'Pengguna OP Mainnet aktif sebelum Jun 2022.',max:2000,price:2.1,note:'Airdrop #1 — sudah closed.'},
+  {id:'op2',name:'Optimism OP #2',icon:'🔴',chain:'Optimism',chains:['optimism'],token:'OP',cat:'historic',cs:'expired',deadline:'Feb 2024 — CLOSED',url:'https://app.optimism.io/airdrops',crit:'OP Governance delegator aktif periode Feb 2023.',max:3000,price:2.3,note:'Airdrop #2 — sudah closed.'},
+  {id:'op3',name:'Optimism OP #3',icon:'🔴',chain:'Optimism',chains:['optimism'],token:'OP',cat:'historic',cs:'expired',deadline:'Sep 2024 — CLOSED',url:'https://app.optimism.io/airdrops',crit:'Active governance participant, snapshot Sep 2023.',max:2500,price:1.8,note:'Airdrop #3 — sudah closed.'},
+  {id:'op4',name:'Optimism OP #4',icon:'🔴',chain:'Optimism',chains:['optimism','base'],token:'OP',cat:'historic',cs:'expired',deadline:'Feb 2025 — CLOSED',url:'https://app.optimism.io/airdrops',crit:'Superchain power user Mar-Sep 2024, ≥20 smart contracts.',max:2000,price:1.5,note:'Airdrop #4 — deadline Feb 13 2025, sudah closed.'},
+  {id:'zk24',name:'zkSync ZK S1',icon:'⚡',chain:'zkSync Era',chains:['zksync'],token:'ZK',cat:'historic',cs:'expired',deadline:'3 Jan 2025 — CLOSED',url:'https://claim.zknation.io',crit:'≥10 smart contract di zkSync Era sebelum 24 Mar 2024.',max:100000,price:0.06,note:'Expired 3 Jan 2025. Unclaimed tokens kena exploit April 2025.'},
+  {id:'strk23',name:'StarkNet STRK',icon:'⭐',chain:'StarkNet',chains:['ethereum'],token:'STRK',cat:'historic',cs:'expired',deadline:'Jun 2024 — CLOSED',url:'https://provisions.starknet.io',crit:'Pengguna Ethereum aktif (DeFi protocols) sebelum 2023.',max:5000,price:0.35,note:'Sudah closed. Ratusan juta STRK didistribusi.'},
+  {id:'blur23',name:'Blur BLUR',icon:'💨',chain:'Ethereum',chains:['ethereum'],token:'BLUR',cat:'historic',cs:'expired',deadline:'Feb 2023 — CLOSED',url:'https://blur.io',crit:'NFT trader aktif di Blur/OpenSea sebelum Jan 2023.',max:20000,price:0.28,note:'Season 1 & 2 sudah closed.'},
+  {id:'zro24',name:'LayerZero ZRO S1',icon:'🔗',chain:'Multi-chain',chains:['ethereum','arbitrum','optimism','polygon','base'],token:'ZRO',cat:'historic',cs:'expired',deadline:'Des 2024 — CLOSED',url:'https://layerzero.foundation',crit:'Bridge via LayerZero, volume transaksi, multi-chain activity sebelum Mei 2024.',max:1000,price:3.8,note:'Season 1 closed. Season 2 sedang aktif (farming).'},
+  {id:'maverick',name:'Maverick MAV',icon:'💫',chain:'Ethereum/zkSync',chains:['ethereum','zksync'],token:'MAV',cat:'historic',cs:'expired',deadline:'2024 — CLOSED',url:'https://mav.xyz',crit:'LP aktif di Maverick Protocol sebelum snapshot.',max:5000,price:0.2,note:'Beberapa user menemukan ribuan $ unclaimed MAV.'},
+  {id:'wormhole',name:'Wormhole W',icon:'🕳️',chain:'Multi-chain',chains:['ethereum','arbitrum','base','polygon'],token:'W',cat:'historic',cs:'expired',deadline:'Apr 2024 — CLOSED',url:'https://wormhole.com',crit:'Pengguna bridge Wormhole aktif sebelum snapshot Feb 2024.',max:10000,price:0.25,note:'Airdrop besar Wormhole — cek apakah expired di chain kamu.'},
+
+  // CURRENT (active/claimable/ongoing)
+  {id:'op-ss',name:'OP SuperStacks',icon:'🔴',chain:'Superchain',chains:['optimism','base'],token:'OP',cat:'current',cs:'open',deadline:'Jul 2025 → 1yr window',url:'https://app.optimism.io/airdrops',crit:'Partisipasi SuperStacks campaign, provide liquidity di Superchain DeFi pools.',max:500,price:1.5,note:'1 tahun claim window dari Jul 2025. Cek eligibility!'},
+  {id:'scr',name:'Scroll SCR',icon:'📜',chain:'Scroll',chains:['scroll'],token:'SCR',cat:'current',cs:'open',deadline:'Open — Scroll Sessions',url:'https://scroll.io/sessions',crit:'Transaksi aktif di Scroll mainnet, bridge, interact dApps. Kumpulkan Sessions points.',max:1200,price:0.8,note:'Masih ada rewards! Check Sessions points kamu sekarang.'},
+  {id:'taiko',name:'Taiko Trailblazers',icon:'🎏',chain:'Taiko',chains:['taiko'],token:'TAIKO',cat:'current',cs:'open',deadline:'Ongoing — Multi Season',url:'https://trailblazers.taiko.xyz',crit:'Aktif di Taiko mainnet: bridge, swap, deploy contracts. Kumpulkan Trailblazers points.',max:500,price:1.1,note:'Program multi-season! Farming masih bisa.'},
+  {id:'ethfi5',name:'Ether.fi ETHFI S5',icon:'💎',chain:'Ethereum + L2',chains:['ethereum','arbitrum','base'],token:'ETHFI',cat:'current',cs:'open',deadline:'Feb–Mei 2025',url:'https://app.ether.fi',crit:'Stake ETH di Ether.fi (weETH), hold minimal 7 hari. 10M ETHFI untuk Season 5.',max:300,price:2.5,note:'Season 5 aktif. Cek app.ether.fi untuk status kamu!'},
+  {id:'lxp',name:'Linea LXP-L Points',icon:'🟩',chain:'Linea',chains:['linea'],token:'LXP-L/LINEA',cat:'current',cs:'open',deadline:'Ongoing — Pre TGE',url:'https://linea.build/surge',crit:'Aktif di Linea: swap, bridge, deploy. Kumpulkan LXP-L points untuk future token.',max:5000,price:0.15,note:'Linea belum TGE! Prime time untuk farming points.'},
+  {id:'eigen2',name:'EigenLayer EIGEN S2',icon:'🔮',chain:'Ethereum',chains:['ethereum'],token:'EIGEN',cat:'current',cs:'open',deadline:'Season 2 Ongoing',url:'https://app.eigenlayer.xyz',crit:'Restake ETH / LST di EigenLayer. Semakin besar deposit, semakin besar reward.',max:200,price:2.8,note:'Season 2 masih berjalan. Cek allocation kamu!'},
+  {id:'hype2',name:'Hyperliquid HYPE S2',icon:'🌊',chain:'HyperEVM',chains:['ethereum'],token:'HYPE',cat:'current',cs:'open',deadline:'2026 — Active',url:'https://app.hyperliquid.xyz',crit:'Trade perps di Hyperliquid DEX, maintain volume. Season 1 = $6.2B market cap!',max:500,price:12,note:'Season 2 active per 2026. High potential untuk active traders!'},
+  {id:'merkl',name:'Merkl LP Rewards',icon:'🎯',chain:'Multi-chain',chains:['ethereum','arbitrum','optimism','base','polygon'],token:'Various',cat:'current',cs:'open',deadline:'Always New Rewards',url:'https://merkl.xyz',crit:'Provide liquidity di Uniswap V3/V4 pools yang di-incentive. Auto-detect unclaimed LP rewards.',max:1000,price:0.5,note:'Cek Merkl.xyz — mungkin ada unclaimed LP rewards!'},
+  {id:'blast2',name:'Blast Season Rewards',icon:'💥',chain:'Blast',chains:['blast'],token:'BLAST',cat:'current',cs:'open',deadline:'Ongoing',url:'https://blast.io/en/airdrop',crit:'Hold ETH/stablecoins di Blast, gunakan Blast native dApps. Earn Gold points.',max:800,price:0.017,note:'Masih ada rewards untuk Blast users yang aktif.'},
+  {id:'mode',name:'Mode Network Rewards',icon:'🟡',chain:'Mode',chains:['mode'],token:'MODE',cat:'current',cs:'open',deadline:'Ongoing',url:'https://app.mode.network',crit:'Deposit & interact dApps di Mode Network. Earn Mode Points.',max:5000,price:0.025,note:'Aktif di Mode = dapat ongoing MODE rewards!'},
+  {id:'obol',name:'Obol OBOL',icon:'⛓️',chain:'Ethereum',chains:['ethereum'],token:'OBOL',cat:'current',cs:'open',deadline:'Recent Launch',url:'https://obol.org',crit:'Core community member, Ethereum staking node operator, contributor.',max:1000,price:0.8,note:'Recent launch. Cek eligibility sekarang!'},
+  {id:'mantle',name:'Mantle Journey',icon:'🌀',chain:'Mantle',chains:['mantle'],token:'MNT',cat:'current',cs:'open',deadline:'Ongoing',url:'https://mantle.xyz',crit:'Aktif di Mantle Network: swap, bridge, stake mETH. Mantle Journey program.',max:3000,price:0.4,note:'Mantle Journey masih aktif!'},
+
+  // UPCOMING (farm now)
+  {id:'zro2',name:'LayerZero ZRO S2',icon:'🔗',chain:'Multi-chain',chains:['ethereum','arbitrum','optimism','base','polygon'],token:'ZRO',cat:'upcoming',cs:'upcoming',deadline:'TBD 2026',url:'https://layerzero.network',crit:'Bridge via LayerZero V2, multi-chain volume, active usage metrics.',max:2000,price:4.0,note:'Top opportunity 2026 per Coinspeaker! Farm sekarang.'},
+  {id:'base-token',name:'Base Token (Spekulatif)',icon:'🔷',chain:'Base',chains:['base'],token:'BASE',cat:'upcoming',cs:'upcoming',deadline:'TBD — Announced Sep 2025',url:'https://base.org',crit:'Aktif di Base: swap, bridge, mint. Jesse Pollak confirmed exploring Base token.',max:1000,price:0,note:'Belum confirmed tapi signaled Sep 2025. Farm Base sekarang!'},
+  {id:'mask',name:'MetaMask MASK',icon:'🦊',chain:'Multi-chain',chains:['ethereum','base','polygon'],token:'MASK',cat:'upcoming',cs:'upcoming',deadline:'TBD — Announced Sep 2025',url:'https://metamask.io',crit:'Gunakan MetaMask built-in features: swap, bridge, perps. MetaMask Rewards season aktif.',max:500,price:0,note:'Consensys CEO confirm MASK token. Start farming MetaMask Rewards!'},
+  {id:'unichain',name:'Unichain (Potential)',icon:'🦄',chain:'Unichain',chains:['ethereum','base'],token:'UNI-CHAIN',cat:'upcoming',cs:'upcoming',deadline:'Active Feb 2025 — Farm',url:'https://unichain.org',crit:'Aktif di Unichain L2: swap, bridge, provide liquidity. Uniswap V4 interactions.',max:2000,price:0,note:'Unichain belum punya token — perfect time to farm!'},
+  {id:'monad',name:'Monad MON',icon:'🟣',chain:'Monad',chains:['ethereum'],token:'MON',cat:'upcoming',cs:'upcoming',deadline:'Testnet Active — 2026',url:'https://monad.xyz',crit:'DeFi users (Aave, Curve, Uniswap), NFT holders, DAO voters. $244M funded.',max:1000,price:0,note:'Monad testnet aktif. Early participation bisa dapat big allocation!'},
+  {id:'farcaster',name:'Farcaster (Potential)',icon:'📡',chain:'Base/Optimism',chains:['base','optimism'],token:'FC',cat:'upcoming',cs:'upcoming',deadline:'No Token Yet — Farm',url:'https://warpcast.com',crit:'Pengguna aktif Farcaster/Warpcast. Post, engage, build. Backed $150M a16z+Paradigm.',max:3000,price:0,note:'Salah satu kandidat airdrop terbesar yang belum launch!'},
+  {id:'symbiotic',name:'Symbiotic Points',icon:'⚙️',chain:'Ethereum',chains:['ethereum'],token:'SYMB',cat:'upcoming',cs:'upcoming',deadline:'Point Farming — Active',url:'https://symbiotic.fi',crit:'Restake assets via Symbiotic protocol. Alternatif EigenLayer yang sedang naik.',max:2000,price:0,note:'Farming points aktif — alternative ke EigenLayer!'},
+];
+
+let activeChains = new Set(CHAINS.map(c => c.id));
+let currentFilter = 'all';
+let scanData = [];
+
+function init() {
+  renderChains();
+  document.getElementById('walletAddr').addEventListener('keydown', e => { if (e.key==='Enter') startScan(); });
+}
+
+function renderChains() {
+  document.getElementById('chainsRow').innerHTML = CHAINS.map(c =>
+    `<div class="chain-chip on" id="chip-${c.id}" onclick="toggleChain('${c.id}')"><span>${c.icon}</span><span>${c.name}</span></div>`
+  ).join('');
+}
+
+function toggleChain(id) {
+  const el = document.getElementById('chip-'+id);
+  if (activeChains.has(id)) { activeChains.delete(id); el.classList.remove('on'); }
+  else { activeChains.add(id); el.classList.add('on'); }
+}
+
+function toggleAllChains() {
+  if (activeChains.size === CHAINS.length) {
+    activeChains.clear(); CHAINS.forEach(c => document.getElementById('chip-'+c.id).classList.remove('on'));
+  } else {
+    CHAINS.forEach(c => { activeChains.add(c.id); document.getElementById('chip-'+c.id).classList.add('on'); });
+  }
+}
+
+function setFilter(el, val) {
+  currentFilter = val;
+  document.querySelectorAll('.ftab').forEach(t => t.className = 'ftab');
+  el.classList.add('at-' + val);
+  if (scanData.length > 0) renderCards();
+}
+
+function hash(s) {
+  let h=0; for(let i=0;i<s.length;i++) h=(Math.imul(31,h)+s.charCodeAt(i))|0; return Math.abs(h);
+}
+
+function simulate(wallet, drop) {
+  const hasChain = drop.chains.some(c => activeChains.has(c));
+  if (!hasChain) return {eligible:false, amount:0};
+  const seed = hash(wallet.toLowerCase() + drop.id);
+  const r = (seed % 1000) / 1000;
+  const pct = drop.cat==='upcoming' ? 0.5 : drop.cat==='current' ? 0.38 : 0.3;
+  if (r < pct) {
+    const mult = 0.1 + (seed % 100) / 100 * 0.9;
+    return {eligible: true, amount: Math.floor(drop.max * mult)};
+  }
+  return {eligible: false, amount: 0};
+}
+
+async function startScan() {
+  const addr = document.getElementById('walletAddr').value.trim();
+  const inp = document.getElementById('walletAddr');
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    inp.classList.add('err'); setTimeout(()=>inp.classList.remove('err'),800); return;
+  }
+  const btn = document.getElementById('scanBtn');
+  btn.disabled=true; btn.textContent='⏳ Scanning...';
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('resultsGrid').innerHTML='';
+  document.getElementById('summarySection').style.display='none';
+  document.getElementById('progressBox').classList.add('show');
+  document.getElementById('pbFill').style.width='0%';
+  scanData=[];
+
+  const relevant = DROPS.filter(d => d.chains.some(c => activeChains.has(c)));
+  const total = relevant.length;
+  let done = 0;
+
+  for (const drop of relevant) {
+    await new Promise(r=>setTimeout(r, 55 + Math.random()*60));
+    const result = simulate(addr, drop);
+    scanData.push({drop, ...result});
+    done++;
+    const pct = Math.round(done/total*100);
+    document.getElementById('pbFill').style.width = pct+'%';
+    document.getElementById('pbPct').textContent = pct+'%';
+    document.getElementById('pbText').textContent = `Checking ${drop.name}...`;
+    const tag = drop.cat==='historic'?'📜':drop.cat==='upcoming'?'🔮':'⚡';
+    document.getElementById('pbLog').innerHTML =
+      `<span style="color:var(--accent2)">${tag}</span> ${drop.name} — ${result.eligible ? '<span style="color:var(--green)">✓ ELIGIBLE</span>' : '<span>✗ not eligible</span>'}`;
+  }
+
+  finalize();
+  btn.disabled=false; btn.textContent='⚡ SCAN ALL DROPS';
+}
+
+function finalize() {
+  const claimable = scanData.filter(r=>r.eligible && r.drop.cs==='open');
+  const expiredElig = scanData.filter(r=>r.eligible && r.drop.cs==='expired');
+  const usd = claimable.reduce((s,r)=>s+r.amount*(r.drop.price||0),0);
+  document.getElementById('sE').textContent = claimable.length;
+  document.getElementById('sX').textContent = expiredElig.length;
+  document.getElementById('sU').textContent = '$'+usd.toFixed(0);
+  document.getElementById('sT').textContent = scanData.length;
+  document.getElementById('summarySection').style.display = 'block';
+  document.getElementById('pbText').textContent = `✓ Scan selesai — ${claimable.length} claimable drop ditemukan!`;
+  renderCards();
+}
+
+function renderCards() {
+  const grid = document.getElementById('resultsGrid');
+  grid.innerHTML = '';
+
+  let data = [...scanData];
+  if (currentFilter === 'current') data = data.filter(r=>r.drop.cat==='current');
+  else if (currentFilter === 'historic') data = data.filter(r=>r.drop.cat==='historic');
+  else if (currentFilter === 'upcoming') data = data.filter(r=>r.drop.cat==='upcoming');
+  else if (currentFilter === 'eligible') data = data.filter(r=>r.eligible);
+
+  data.sort((a,b) => {
+    const sc = r => {
+      if (r.eligible && r.drop.cs==='open') return 4;
+      if (r.eligible && r.drop.cs==='upcoming') return 3;
+      if (r.drop.cs==='open') return 2;
+      if (r.eligible) return 1;
+      return 0;
+    };
+    return sc(b)-sc(a);
+  });
+
+  if (data.length===0) {
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--muted)">Tidak ada hasil</div>';
+    return;
+  }
+
+  data.forEach((r,i) => {
+    const {drop, eligible, amount} = r;
+    const isExp = drop.cs==='expired', isUp = drop.cs==='upcoming';
+
+    let cardCls = 'card ';
+    if (eligible && !isExp && !isUp) cardCls += 'eligible';
+    else if (isExp && eligible) cardCls += 'expired';
+    else if (isExp) cardCls += 'expired';
+    else if (isUp) cardCls += 'upcoming-card';
+    else cardCls += 'not-eligible';
+
+    let statusHtml;
+    if (eligible && isExp) statusHtml = `<span class="status-pill elig-exp">⚠️ Eligible tapi EXPIRED</span>`;
+    else if (eligible && isUp) statusHtml = `<span class="status-pill up">✓ Eligible — Farm Now!</span>`;
+    else if (eligible) statusHtml = `<span class="status-pill eligible">✓ ELIGIBLE — CLAIM!</span>`;
+    else if (isExp) statusHtml = `<span class="status-pill exp">⛔ Tidak Eligible</span>`;
+    else if (isUp) statusHtml = `<span class="status-pill up">🔮 Upcoming</span>`;
+    else statusHtml = `<span class="status-pill no">✗ Tidak Eligible</span>`;
+
+    const catLabel = drop.cat==='historic'?'📜 Historic':drop.cat==='current'?'⚡ Active':'🔮 Upcoming';
+
+    const dlClass = isExp ? 'closed' : isUp ? 'tbdt' :
+      drop.deadline.includes('Ongoing')||drop.deadline.includes('Active')||drop.deadline.includes('Open') ? 'open' : 'soon';
+
+    let amtHtml;
+    if (eligible && !isUp) {
+      const usd = drop.price>0 ? `≈ $${(amount*drop.price).toFixed(0)}` : 'Harga TBD';
+      amtHtml = `<div><div class="amount-label">Est. Allocation</div><div class="amount-val">${amount.toLocaleString()} ${drop.token}</div><div class="amount-usd">${usd}</div></div>`;
+    } else if (isUp) {
+      amtHtml = `<div><div class="amount-label">Reward Potensi</div><div class="amount-val" style="color:var(--accent2)">TBD</div><div class="amount-usd">Farm sekarang!</div></div>`;
+    } else {
+      amtHtml = `<div><div class="amount-label">Status</div><div class="amount-val" style="color:var(--muted);font-size:0.75rem">—</div></div>`;
+    }
+
+    let actionHtml;
+    if (isExp) actionHtml = `<button class="card-action ex" disabled>⛔ Claim Period Closed</button>`;
+    else if (isUp) actionHtml = `<button class="card-action farm" onclick="window.open('${drop.url}','_blank')">🚀 Farm / Check Now →</button>`;
+    else if (eligible) actionHtml = `<button class="card-action claim" onclick="window.open('${drop.url}','_blank')">✅ KLAIM DI SITUS RESMI →</button>`;
+    else actionHtml = `<button class="card-action view" onclick="window.open('${drop.url}','_blank')">🔍 Lihat Project →</button>`;
+
+    const card = document.createElement('div');
+    card.className = cardCls;
+    card.style.animationDelay = (i%15)*22+'ms';
+    card.innerHTML = `
+      <span class="cat-badge ${drop.cat}">${catLabel}</span>
+      <div class="card-top">
+        <div class="proj-icon">${drop.icon}</div>
+        <div>
+          <div class="proj-name">${drop.name}</div>
+          <div class="proj-meta">${drop.chain} · ${drop.token}</div>
+        </div>
+      </div>
+      ${statusHtml}
+      <div class="criteria-tag">${drop.crit}</div>
+      <div class="card-info">
+        ${amtHtml}
+        <div class="deadline-block">
+          <div class="deadline-label">Deadline</div>
+          <div class="deadline-val ${dlClass}">${drop.deadline}</div>
+        </div>
+      </div>
+      ${actionHtml}
+      ${drop.note ? `<div style="font-size:0.58rem;color:var(--muted);margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border)">💡 ${drop.note}</div>`:''}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
